@@ -1,7 +1,10 @@
 package googl
 
 import (
-	"fmt"
+	"encoding/json"
+	"errors"
+	"net/http"
+
 	"github.com/parnurzeal/gorequest"
 )
 
@@ -26,51 +29,52 @@ func NewClient(key string) *Googl {
 	return &Googl{Key: key}
 }
 
-func (c *Googl) Shorten(url string) string {
+func (c *Googl) Shorten(url string) (*ShortMsg, error) {
 	request := gorequest.New()
-	var response string
-
 	gUrl := "https://www.googleapis.com/urlshortener/v1/url?key=" + c.Key
+
 	if c.Key == "" {
-		response = "You need to set the Google Url Shortener API Key"
+		return nil, errors.New("You must set the Google URL Shortener API key")
 	} else if url == "" {
-		response = "You need to set the url to be shortened"
+		return nil, errors.New("You must set the URL to be shortened")
 	} else {
-		resp, body, _ := request.Post(gUrl).
+		resp, _, _ := request.Post(gUrl).
 			Set("Accept", "application/json").
 			Set("Content-Type", "application/json").
 			Send(`{"longUrl":"` + url + `"}`).End()
 		if resp.Status == "200 OK" {
-			fmt.Println(body)
-			response = "Done! Ok!"
+			shortMsg := &ShortMsg{}
+			err := unmarshal(resp, shortMsg)
+			return shortMsg, err
 		} else {
-			response = "Some error occurred, please try again later"
+			return nil, errors.New("Unknown error")
 		}
 	}
-
-	return response
 }
 
-func (c *Googl) Expand(shortUrl string) string {
+func (c *Googl) Expand(shortUrl string) (*LongMsg, error) {
 	request := gorequest.New()
-	var response string
-
 	gUrl := "https://www.googleapis.com/urlshortener/v1/url?key=" + c.Key + "&shortUrl=" + shortUrl
+
 	if c.Key == "" {
-		response = "You need to set the Google Url Shortener API Key"
+		return nil, errors.New("You must set the Google URL Shortener API key")
 	} else if shortUrl == "" {
-		response = "You need to set the url to be expanded"
+		return nil, errors.New("You must set the URL to be shortened")
 	} else {
-		resp, body, _ := request.Get(gUrl).
+		resp, _, _ := request.Get(gUrl).
 			Set("Accept", "application/json").
 			Set("Content-Type", "application/json").End()
 		if resp.Status == "200 OK" {
-			fmt.Println(body)
-			response = "Done! Ok!"
+			longMsg := &LongMsg{}
+			err := unmarshal(resp, longMsg)
+			return longMsg, err
 		} else {
-			response = "Some error occurred, please try again later"
+			return nil, errors.New("Unknown error")
 		}
 	}
+}
 
-	return response
+func unmarshal(body *http.Response, target interface{}) error {
+	defer body.Body.Close()
+	return json.NewDecoder(body.Body).Decode(target)
 }
